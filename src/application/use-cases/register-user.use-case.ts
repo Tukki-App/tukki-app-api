@@ -23,6 +23,7 @@ export class RegisterUserUseCase {
           password: hashedPassword,
         });
         const savedUser = await manager.save(user);
+        delete savedUser.password;
 
         if (role === 'DRIVER') {
           const availability = manager.create(DriverAvailability, {

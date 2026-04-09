@@ -1,6 +1,22 @@
 node_modules/
 dist/
+coverage/
+
 .env
+.env.local
+.env.*.local
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+
+# Build artifacts
 *.js.map
 *.d.ts
-.DS_Store
+
+# Docker
+*.tar

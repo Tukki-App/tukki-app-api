@@ -12,19 +12,15 @@ export class UpdateDriverAvailabilityUseCase {
   ) {}
 
   async execute(driverId: string, dto: UpdateAvailabilityDto): Promise<DriverAvailability> {
-    const { isOnline } = dto;
-
-    const availability = await this.availabilityRepository.findOne({
-      where: { driverId },
-    });
+    const availability = await this.availabilityRepository.findOne({ where: { driverId } });
 
     if (!availability) {
       throw new NotFoundException(`Driver availability record for ${driverId} not found`);
     }
 
-    availability.isOnline = isOnline;
+    availability.isOnline = dto.isOnline;
     availability.lastSeen = new Date();
 
-    return await this.availabilityRepository.save(availability);
+    return this.availabilityRepository.save(availability);
   }
 }

@@ -1,40 +1,24 @@
 import { Injectable } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { Trip } from '../../domains/trip/entities/trip.entity';
+import { TripRepository } from '../../infrastructure/db/repositories/trip.repository';
 import { CreateTripDto } from './dtos/create-trip.dto';
+import { Trip } from '../../domains/trip/entities/trip.entity';
 
 @Injectable()
 export class CreateTripUseCase {
-  constructor(
-    @InjectRepository(Trip)
-    private readonly tripRepository: Repository<Trip>,
-  ) {}
+  constructor(private readonly tripRepository: TripRepository) {}
 
   async execute(dto: CreateTripDto): Promise<Trip> {
-    const {
-      driverId,
-      departureCity,
-      destinationCity,
-      departureTime,
-      capacity,
-      price,
-    } = dto;
+    const { driverId, departureCity, destinationCity, departureTime, capacity, price } = dto;
 
-    const normalizedDeparture = departureCity.trim().toLowerCase();
-    const normalizedDestination = destinationCity.trim().toLowerCase();
-
-    const trip = this.tripRepository.create({
+    return this.tripRepository.save({
       driverId,
-      departureCity: normalizedDeparture,
-      destinationCity: normalizedDestination,
+      departureCity: departureCity.trim().toLowerCase(),
+      destinationCity: destinationCity.trim().toLowerCase(),
       departureTime: new Date(departureTime),
       capacity,
       availableSeats: capacity,
       price,
       status: 'ACTIVE',
     });
-
-    return await this.tripRepository.save(trip);
   }
 }

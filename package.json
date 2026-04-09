@@ -5,38 +5,54 @@
   "main": "src/main.ts",
   "scripts": {
     "start": "nest start",
+    "start:dev": "npx @nestjs/cli build && node dist/main.js",
     "build": "nest build",
-    "test": "jest",
-    "test:e2e": "jest --config ./test/jest-e2e.json",
+    "test": "jest --runInBand",
+    "test:watch": "jest --watch",
+    "test:cov": "jest --coverage --runInBand",
+    "test:integration": "jest --config '{\"rootDir\":\".\",\"testRegex\":\"integration\\\\.spec\\\\.ts$\",\"transform\":{\"^.+\\\\.(t|j)s$\":\"ts-jest\"},\"testEnvironment\":\"node\",\"moduleFileExtensions\":[\"js\",\"json\",\"ts\"]}' --runInBand",
+    "test:e2e": "jest --config '{\"rootDir\":\".\",\"testRegex\":\".e2e-spec.ts$\",\"transform\":{\"^.+\\\\.(t|j)s$\":\"ts-jest\"},\"testEnvironment\":\"node\",\"moduleFileExtensions\":[\"js\",\"json\",\"ts\"]}' --runInBand",
     "typeorm": "typeorm-ts-node-commonjs",
     "db:migration:run": "npm run typeorm migration:run -- -d src/infrastructure/db/data-source.ts",
     "db:migration:revert": "npm run typeorm migration:revert -- -d src/infrastructure/db/data-source.ts"
   },
   "dependencies": {
-    "@nestjs/common": "^9.0.0",
-    "@nestjs/core": "^9.0.0",
-    "@nestjs/jwt": "^9.0.0",
-    "@nestjs/passport": "^9.0.3",
-    "@nestjs/platform-express": "^9.0.0",
-    "@nestjs/typeorm": "^9.0.1",
+    "@nestjs/cache-manager": "^3.1.0",
+    "@nestjs/common": "^11.1.18",
+    "@nestjs/core": "^11.1.18",
+    "@nestjs/jwt": "^11.0.2",
+    "@nestjs/passport": "^11.0.5",
+    "@nestjs/platform-express": "^11.1.18",
+    "@nestjs/platform-socket.io": "^11.1.18",
+    "@nestjs/swagger": "^11.2.7",
+    "@nestjs/typeorm": "^11.0.1",
+    "@nestjs/websockets": "^11.1.18",
     "bcrypt": "^6.0.0",
-    "class-transformer": "^0.4.0",
-    "class-validator": "^0.13.1",
+    "cache-manager": "^7.2.8",
+    "class-transformer": "^0.5.1",
+    "class-validator": "^0.15.1",
     "passport": "^0.6.0",
     "passport-jwt": "^4.0.1",
     "pg": "^8.20.0",
     "reflect-metadata": "^0.1.13",
     "rxjs": "^7.0.0",
+    "socket.io": "^4.8.3",
+    "swagger-ui-express": "^5.0.1",
     "typeorm": "^0.3.28"
   },
   "devDependencies": {
-    "@nestjs/testing": "^9.0.0",
+    "@nestjs/testing": "^11.1.18",
     "@types/bcrypt": "^6.0.0",
+    "@types/cache-manager": "^4.0.6",
+    "@types/jest": "^30.0.0",
     "@types/passport-jwt": "^4.0.1",
-    "jest": "^27.0.0",
-    "ts-jest": "^27.0.0",
+    "@types/supertest": "^7.2.0",
+    "jest": "^30.3.0",
+    "supertest": "^7.2.2",
+    "ts-jest": "^29.4.9",
     "ts-loader": "^9.2.6",
     "ts-node": "^10.9.2",
+    "tsconfig-paths": "^4.2.0",
     "typescript": "^4.5.4"
   },
   "jest": {
@@ -47,6 +63,26 @@
     ],
     "rootDir": "src",
     "testRegex": ".spec.ts$",
+    "transform": {
+      "^.+\\.(t|j)s$": "ts-jest"
+    },
+    "testEnvironment": "node",
+    "coverageDirectory": "../coverage",
+    "collectCoverageFrom": [
+      "**/*.ts",
+      "!**/*.module.ts",
+      "!**/index.ts",
+      "!**/*.dto.ts"
+    ]
+  },
+  "jest-e2e": {
+    "moduleFileExtensions": [
+      "js",
+      "json",
+      "ts"
+    ],
+    "rootDir": ".",
+    "testRegex": ".e2e-spec.ts$",
     "transform": {
       "^.+\\.(t|j)s$": "ts-jest"
     },

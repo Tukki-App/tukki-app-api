@@ -13,8 +13,6 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   }
 
   async validate(payload: any) {
-    // This payload is already verified here.
-    // We can inject user roles and other data into the request.
     return { userId: payload.sub, role: payload.role, phone: payload.phone };
   }
 }

@@ -1,0 +1,88 @@
+version: '3.9'
+
+services:
+  app:
+    image: ghcr.io/${GITHUB_REPOSITORY}:${IMAGE_TAG:-latest}
+    container_name: covoiturage-api
+    restart: always
+    expose:
+      - '3000'
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: ${DATABASE_URL}
+      JWT_SECRET: ${JWT_SECRET}
+      PORT: 3000
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - covoiturage-internal
+      - traefik-public
+    labels:
+      - 'traefik.enable=true'
+      - 'traefik.docker.network=traefik-public'
+      # Router HTTPS
+      - 'traefik.http.routers.covoiturage.rule=Host(`covoiturage.backnd-api.cloud`)'
+      - 'traefik.http.routers.covoiturage.entrypoints=websecure'
+      - 'traefik.http.routers.covoiturage.tls=true'
+      - 'traefik.http.routers.covoiturage.tls.certresolver=letsencrypt'
+      # Service
+      - 'traefik.http.services.covoiturage.loadbalancer.server.port=3000'
+      - 'traefik.http.services.covoiturage.loadbalancer.healthcheck.path=/health'
+      - 'traefik.http.services.covoiturage.loadbalancer.healthcheck.interval=30s'
+      # Middlewares sécurité
+      - 'traefik.http.routers.covoiturage.middlewares=covoiturage-security@docker'
+      - 'traefik.http.middlewares.covoiturage-security.headers.stsSeconds=31536000'
+      - 'traefik.http.middlewares.covoiturage-security.headers.stsIncludeSubdomains=true'
+      - 'traefik.http.middlewares.covoiturage-security.headers.forceSTSHeader=true'
+      - 'traefik.http.middlewares.covoiturage-security.headers.contentTypeNosniff=true'
+      - 'traefik.http.middlewares.covoiturage-security.headers.browserXssFilter=true'
+    healthcheck:
+      test: ['CMD', 'wget', '-qO-', 'http://localhost:3000/health']
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 512M
+    logging:
+      driver: json-file
+      options:
+        max-size: '10m'
+        max-file: '3'
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: covoiturage-postgres
+    restart: always
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    networks:
+      - covoiturage-internal
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    logging:
+      driver: json-file
+      options:
+        max-size: '10m'
+        max-file: '3'
+
+volumes:
+  postgres-data:
+    driver: local
+
+networks:
+  covoiturage-internal:
+    driver: bridge
+  traefik-public:
+    external: true

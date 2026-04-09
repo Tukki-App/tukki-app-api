@@ -1,20 +1,12 @@
 import { Injectable } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { BookingRepository } from '../../infrastructure/db/repositories/booking.repository';
 import { Booking } from '../../domains/booking/entities/booking.entity';
 
 @Injectable()
 export class GetMyBookingsUseCase {
-  constructor(
-    @InjectRepository(Booking)
-    private readonly bookingRepository: Repository<Booking>,
-  ) {}
+  constructor(private readonly bookingRepository: BookingRepository) {}
 
   async execute(passengerId: string): Promise<Booking[]> {
-    return await this.bookingRepository.find({
-      where: { passengerId },
-      relations: ['trip', 'trip.driver'],
-      order: { createdAt: 'DESC' },
-    });
+    return this.bookingRepository.findByPassengerId(passengerId);
   }
 }

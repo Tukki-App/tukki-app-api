@@ -1,0 +1,227 @@
+name: CD
+
+on:
+  push:
+    branches: [main]
+    tags:
+      - 'v*.*.*'
+
+concurrency:
+  group: cd-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  NODE_VERSION: '20'
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+  DEPLOY_PATH: /opt/covoiturage
+
+jobs:
+  # ─── Job 1: Publish Docker Image ─────────────────────────────────────────────
+  publish:
+    name: Publish Docker Image
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    outputs:
+      image-digest: ${{ steps.build.outputs.digest }}
+      image-tag: ${{ steps.meta.outputs.version }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract Docker metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=sha,prefix=sha-
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
+
+      - name: Build and push
+        id: build
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          target: runner
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          platforms: linux/amd64
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # ─── Job 2: Deploy to VPS ────────────────────────────────────────────────────
+  deploy:
+    name: Deploy → VPS (covoiturage.backnd-api.cloud)
+    runs-on: ubuntu-latest
+    needs: publish
+    environment:
+      name: production
+      url: https://covoiturage.backnd-api.cloud
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Copy compose file to VPS
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          source: docker-compose.prod.yml
+          target: ${{ env.DEPLOY_PATH }}
+
+      - name: Deploy on VPS
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          script: |
+            set -e
+            cd ${{ env.DEPLOY_PATH }}
+
+            # ── Écrire le .env de prod ──────────────────────────────────────
+            cat > .env << 'EOF'
+            GITHUB_REPOSITORY=${{ github.repository }}
+            IMAGE_TAG=${{ needs.publish.outputs.image-tag }}
+            DATABASE_URL=${{ secrets.PROD_DATABASE_URL }}
+            JWT_SECRET=${{ secrets.PROD_JWT_SECRET }}
+            POSTGRES_DB=${{ secrets.PROD_POSTGRES_DB }}
+            POSTGRES_USER=${{ secrets.PROD_POSTGRES_USER }}
+            POSTGRES_PASSWORD=${{ secrets.PROD_POSTGRES_PASSWORD }}
+            EOF
+
+            # ── S'assurer que le réseau Traefik existe ──────────────────────
+            docker network inspect traefik-public >/dev/null 2>&1 \
+              || docker network create traefik-public
+
+            # ── S'assurer que Traefik tourne ────────────────────────────────
+            if ! docker ps --format '{{.Names}}' | grep -q traefik; then
+              echo "==> Starting Traefik"
+              docker run -d \
+                --name traefik \
+                --restart always \
+                --network traefik-public \
+                -p 80:80 \
+                -p 443:443 \
+                -v traefik-letsencrypt:/letsencrypt \
+                -v /var/run/docker.sock:/var/run/docker.sock:ro \
+                traefik:v3.0 \
+                --api.dashboard=false \
+                --api.insecure=false \
+                --log.level=INFO \
+                --providers.docker=true \
+                --providers.docker.exposedbydefault=false \
+                --providers.docker.network=traefik-public \
+                --entrypoints.web.address=:80 \
+                --entrypoints.websecure.address=:443 \
+                --entrypoints.web.http.redirections.entrypoint.to=websecure \
+                --entrypoints.web.http.redirections.entrypoint.scheme=https \
+                --certificatesresolvers.letsencrypt.acme.httpchallenge=true \
+                --certificatesresolvers.letsencrypt.acme.httpchallenge.entrypoint=web \
+                --certificatesresolvers.letsencrypt.acme.email=lifesonou@gmail.com \
+                --certificatesresolvers.letsencrypt.acme.storage=/letsencrypt/acme.json
+            fi
+
+            # ── Login GHCR ──────────────────────────────────────────────────
+            echo "${{ secrets.GITHUB_TOKEN }}" \
+              | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+
+            # ── Pull nouvelle image ─────────────────────────────────────────
+            docker compose -f docker-compose.prod.yml pull app
+
+            # ── Migrations ─────────────────────────────────────────────────
+            echo "==> Running migrations"
+            docker compose -f docker-compose.prod.yml run --rm \
+              -e DATABASE_URL=${{ secrets.PROD_DATABASE_URL }} \
+              app node -e "
+                require('dotenv/config');
+                const { AppDataSource } = require('./dist/infrastructure/db/data-source');
+                AppDataSource.initialize()
+                  .then(() => AppDataSource.runMigrations())
+                  .then(() => { console.log('Migrations OK'); process.exit(0); })
+                  .catch(e => { console.error(e); process.exit(1); });
+              "
+
+            # ── Déploiement zero-downtime ───────────────────────────────────
+            echo "==> Deploying new version"
+            docker compose -f docker-compose.prod.yml up -d --no-deps --remove-orphans app
+
+            # ── Attendre que le health check passe ─────────────────────────
+            echo "==> Waiting for health check..."
+            for i in $(seq 1 12); do
+              if docker exec covoiturage-api wget -qO- http://localhost:3000/health > /dev/null 2>&1; then
+                echo "Health check passed after ${i}x5s"
+                break
+              fi
+              if [ $i -eq 12 ]; then
+                echo "Health check failed — rolling back"
+                docker compose -f docker-compose.prod.yml rollout app || true
+                exit 1
+              fi
+              sleep 5
+            done
+
+            # ── Nettoyage images obsolètes ──────────────────────────────────
+            docker image prune -f
+
+            echo "==> Deployed successfully"
+            docker compose -f docker-compose.prod.yml ps
+
+      - name: Smoke test
+        run: |
+          sleep 10
+          curl -f https://covoiturage.backnd-api.cloud/health \
+            -H "Accept: application/json" \
+            --retry 3 --retry-delay 5 || exit 1
+
+      - name: Notify on failure
+        if: failure()
+        run: |
+          echo "::error::Deployment to covoiturage.backnd-api.cloud FAILED"
+          echo "::error::Image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ needs.publish.outputs.image-tag }}"
+
+  # ─── Job 3: GitHub Release (tags uniquement) ─────────────────────────────────
+  release:
+    name: GitHub Release
+    runs-on: ubuntu-latest
+    needs: [publish, deploy]
+    if: startsWith(github.ref, 'refs/tags/v')
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          body: |
+            ## 🚀 Déployé sur https://covoiturage.backnd-api.cloud
+
+            ### Docker Image
+            ```bash
+            docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ needs.publish.outputs.image-tag }}
+            ```
+            **Digest:** `${{ needs.publish.outputs.image-digest }}`
+
+            ### Swagger
+            https://covoiturage.backnd-api.cloud/api/docs

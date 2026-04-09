@@ -1,14 +1,15 @@
 import { Injectable } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, MoreThan, LessThan, And } from 'typeorm';
-import { Trip } from '../../domains/trip/entities/trip.entity';
+import { TripRepository } from '../../infrastructure/db/repositories/trip.repository';
+import { AppCacheService } from '../../infrastructure/cache/cache.service';
 import { SearchTripDto } from './dtos/search-trip.dto';
+import { Trip } from '../../domains/trip/entities/trip.entity';
+import * as crypto from 'crypto';
 
 @Injectable()
 export class SearchTripsUseCase {
   constructor(
-    @InjectRepository(Trip)
-    private readonly tripRepository: Repository<Trip>,
+    private readonly tripRepository: TripRepository,
+    private readonly cacheService: AppCacheService,
   ) {}
 
   async execute(dto: SearchTripDto): Promise<{ data: Trip[]; nextCursor?: string }> {
@@ -17,38 +18,21 @@ export class SearchTripsUseCase {
     const normalizedDeparture = departureCity.trim().toLowerCase();
     const normalizedDestination = destinationCity.trim().toLowerCase();
 
-    const queryBuilder = this.tripRepository.createQueryBuilder('trip')
-      .where('trip.departure_city = :departure', { departure: normalizedDeparture })
-      .andWhere('trip.destination_city = :destination', { destination: normalizedDestination })
-      .andWhere('trip.status = :status', { status: 'ACTIVE' })
-      .andWhere('trip.deleted_at IS NULL');
+    const hashData = JSON.stringify({ normalizedDeparture, normalizedDestination, departureTime, limit, cursor });
+    const cacheKey = `search-trips:${crypto.createHash('md5').update(hashData).digest('hex')}`;
 
-    const startOfDay = new Date(departureTime);
-    startOfDay.setHours(0, 0, 0, 0);
-    const endOfDay = new Date(departureTime);
-    endOfDay.setHours(23, 59, 59, 999);
+    const cached = await this.cacheService.get<{ data: Trip[]; nextCursor?: string }>(cacheKey);
+    if (cached) return cached;
 
-    queryBuilder.andWhere('trip.departure_time BETWEEN :start AND :end', {
-      start: startOfDay,
-      end: endOfDay,
+    const result = await this.tripRepository.searchTrips({
+      departureCity: normalizedDeparture,
+      destinationCity: normalizedDestination,
+      departureTime,
+      limit,
+      cursor,
     });
 
-    if (cursor) {
-      queryBuilder.andWhere('trip.id > :cursor', { cursor });
-    }
-
-    queryBuilder
-      .orderBy('trip.id', 'ASC')
-      .limit(limit + 1);
-
-    const trips = await queryBuilder.getMany();
-
-    let nextCursor: string | undefined;
-    if (trips.length > limit) {
-      trips.pop();
-      nextCursor = trips[trips.length - 1].id;
-    }
-
-    return { data: trips, nextCursor };
+    await this.cacheService.set(cacheKey, result, 60);
+    return result;
   }
 }
