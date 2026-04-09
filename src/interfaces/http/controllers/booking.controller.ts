@@ -21,7 +21,6 @@ const bookingExample = {
   idempotencyKey: 'unique-key-abc-123',
   createdAt: '2026-04-09T06:14:28.600Z',
   updatedAt: '2026-04-09T06:14:28.600Z',
-  deletedAt: null,
 };
 
 @ApiTags('Bookings')
@@ -34,23 +33,14 @@ export class BookingController {
   @Roles('PASSENGER')
   @ApiBearerAuth('JWT')
   @ApiOperation({
-    summary: 'Créer une réservation (PASSENGER)',
-    description: `Réserve des places sur un trajet.\n\n` +
-      `**Rôle requis : PASSENGER**\n\n` +
-      `- Le statut initial est toujours \`PENDING\` — le chauffeur doit confirmer via \`PATCH /bookings/:id/status\`.\n` +
-      `- \`availableSeats\` du trajet est décrémenté immédiatement à la création.\n` +
-      `- Si le trajet n'a plus assez de places → **409 Conflict**.\n` +
-      `- **Idempotence** : fournissez un \`idempotencyKey\` unique (ex: UUID généré côté mobile). En cas de retry réseau, la même clé retourne la réservation existante sans créer de doublon. Fortement recommandé.`,
+    summary: 'Créer une réservation',
+    description: 'Réserve des places sur un trajet. Statut initial PENDING — le chauffeur doit confirmer via PATCH /bookings/{id}/status. Fournir un idempotencyKey unique (ex: UUID généré côté mobile) pour éviter les doublons en cas de retry réseau.',
   })
   @ApiBody({ type: CreateBookingDto })
-  @ApiResponse({
-    status: 201,
-    description: 'Réservation créée (statut PENDING)',
-    schema: { example: bookingExample },
-  })
-  @ApiResponse({ status: 400, description: 'Trajet non actif ou données invalides' })
+  @ApiResponse({ status: 201, description: 'Réservation créée (statut PENDING). Utiliser id pour les actions suivantes.', schema: { example: bookingExample } })
+  @ApiResponse({ status: 400, description: 'Trajet non actif' })
   @ApiResponse({ status: 401, description: 'Token manquant ou invalide' })
-  @ApiResponse({ status: 403, description: 'Accès refusé — rôle PASSENGER requis' })
+  @ApiResponse({ status: 403, description: 'Rôle PASSENGER requis' })
   @ApiResponse({ status: 404, description: 'Trajet introuvable' })
   @ApiResponse({ status: 409, description: 'Pas assez de places disponibles' })
   async create(@Body() dto: CreateBookingDto) {
@@ -62,14 +52,12 @@ export class BookingController {
   @Roles('PASSENGER')
   @ApiBearerAuth('JWT')
   @ApiOperation({
-    summary: 'Mes réservations (PASSENGER)',
-    description: `Retourne toutes les réservations du passager authentifié, triées par date décroissante.\n\n` +
-      `**Rôle requis : PASSENGER**\n\n` +
-      `Chaque réservation inclut le détail du trajet (\`trip\`) et les infos du chauffeur (\`trip.driver\`).`,
+    summary: 'Mes réservations',
+    description: 'Retourne toutes les réservations du passager connecté, avec le trajet et le chauffeur. Rôle PASSENGER requis.',
   })
   @ApiResponse({
     status: 200,
-    description: 'Liste des réservations du passager',
+    description: 'Liste des réservations',
     schema: {
       example: [{
         ...bookingExample,
@@ -77,21 +65,16 @@ export class BookingController {
           id: '9b1ee16a-306b-4ca7-9ae5-25aa25eca9e2',
           departureCity: 'dakar',
           destinationCity: 'thiès',
-          departureTime: '2026-04-10T08:00:00.000Z',
-          availableSeats: 2,
+          departureTime: '2026-04-20T08:00:00.000Z',
           price: 2500,
           status: 'ACTIVE',
-          driver: {
-            id: 'ebc00913-5d43-4bbd-8a5a-3288fcfb8def',
-            name: 'Bob',
-            phone: '+221700000002',
-          },
+          driver: { id: 'ebc00913-5d43-4bbd-8a5a-3288fcfb8def', name: 'Bob Diallo', phone: '+221700000002' },
         },
       }],
     },
   })
   @ApiResponse({ status: 401, description: 'Token manquant ou invalide' })
-  @ApiResponse({ status: 403, description: 'Accès refusé — rôle PASSENGER requis' })
+  @ApiResponse({ status: 403, description: 'Rôle PASSENGER requis' })
   async getMyBookings(@Request() req: RequestWithUser) {
     return this.bookingService.getMyBookings(req.user.userId);
   }
@@ -101,11 +84,8 @@ export class BookingController {
   @Roles('DRIVER')
   @ApiBearerAuth('JWT')
   @ApiOperation({
-    summary: 'Réservations d\'un trajet (DRIVER)',
-    description: `Retourne toutes les réservations d'un trajet appartenant au chauffeur authentifié.\n\n` +
-      `**Rôle requis : DRIVER**\n\n` +
-      `- Un chauffeur ne peut consulter que les réservations de **ses propres trajets** → 403 sinon.\n` +
-      `- Chaque réservation inclut les infos du passager (\`passenger\`).`,
+    summary: 'Réservations d\'un trajet',
+    description: 'Retourne les réservations d\'un trajet appartenant au chauffeur connecté. Rôle DRIVER requis.',
   })
   @ApiParam({ name: 'tripId', description: 'UUID du trajet', example: '9b1ee16a-306b-4ca7-9ae5-25aa25eca9e2' })
   @ApiResponse({
@@ -114,11 +94,7 @@ export class BookingController {
     schema: {
       example: [{
         ...bookingExample,
-        passenger: {
-          id: 'a975e635-282a-4d4f-981d-d1a33f505ec9',
-          name: 'Alice Diallo',
-          phone: '+221700000001',
-        },
+        passenger: { id: 'a975e635-282a-4d4f-981d-d1a33f505ec9', name: 'Alice Ndiaye', phone: '+221700000001' },
       }],
     },
   })
@@ -137,25 +113,14 @@ export class BookingController {
   @Roles('DRIVER')
   @ApiBearerAuth('JWT')
   @ApiOperation({
-    summary: 'Mettre à jour le statut d\'une réservation (DRIVER)',
-    description: `Permet au chauffeur de confirmer, rejeter ou annuler une réservation.\n\n` +
-      `**Rôle requis : DRIVER**\n\n` +
-      `| Statut | Description |\n` +
-      `|--------|-------------|\n` +
-      `| \`CONFIRMED\` | Le chauffeur accepte le passager |\n` +
-      `| \`REJECTED\` | Le chauffeur refuse la réservation |\n` +
-      `| \`CANCELLED\` | Annulation de la réservation |\n\n` +
-      `Un chauffeur ne peut modifier que les réservations de **ses propres trajets** → 403 sinon.`,
+    summary: 'Mettre à jour le statut d\'une réservation',
+    description: 'Permet au chauffeur de confirmer (CONFIRMED), rejeter (REJECTED) ou annuler (CANCELLED) une réservation. Rôle DRIVER requis.',
   })
   @ApiParam({ name: 'id', description: 'UUID de la réservation', example: '16a0e9eb-1823-4d81-a8d1-3dabba946d15' })
   @ApiBody({ type: UpdateBookingStatusDto })
-  @ApiResponse({
-    status: 200,
-    description: 'Statut mis à jour',
-    schema: { example: { ...bookingExample, status: 'CONFIRMED' } },
-  })
+  @ApiResponse({ status: 200, description: 'Statut mis à jour', schema: { example: { ...bookingExample, status: 'CONFIRMED' } } })
   @ApiResponse({ status: 401, description: 'Token manquant ou invalide' })
-  @ApiResponse({ status: 403, description: 'Cette réservation n\'appartient pas à votre trajet' })
+  @ApiResponse({ status: 403, description: 'Cette réservation ne vous appartient pas' })
   @ApiResponse({ status: 404, description: 'Réservation introuvable' })
   async updateStatus(
     @Param('id', new ParseUUIDPipe()) id: string,

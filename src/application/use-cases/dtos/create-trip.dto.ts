@@ -4,7 +4,7 @@ import { ApiProperty } from '@nestjs/swagger';
 export class CreateTripDto {
   @ApiProperty({
     example: 'ebc00913-5d43-4bbd-8a5a-3288fcfb8def',
-    description: 'UUID du chauffeur (doit correspondre à l\'utilisateur authentifié)',
+    description: 'UUID du chauffeur. Obtenu depuis la réponse de POST /auth/login (champ user.id).',
   })
   @IsUUID()
   driverId!: string;

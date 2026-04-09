@@ -15,10 +15,7 @@ export class IdentityController {
   @Post('register')
   @ApiOperation({
     summary: 'Inscription',
-    description: `Crée un nouveau compte utilisateur (passager ou chauffeur).\n\n` +
-      `- Si \`role = DRIVER\`, un enregistrement de disponibilité est automatiquement créé (\`isOnline: false\`).\n` +
-      `- Le mot de passe est hashé (bcrypt) et jamais retourné dans la réponse.\n` +
-      `- Le numéro de téléphone est unique — une 2e inscription avec le même numéro retourne une erreur 409.`,
+    description: 'Crée un compte PASSENGER ou DRIVER. Pour un DRIVER, un enregistrement de disponibilité est automatiquement créé.',
   })
   @ApiBody({ type: RegisterUserDto })
   @ApiResponse({
@@ -28,12 +25,11 @@ export class IdentityController {
       example: {
         id: 'a975e635-282a-4d4f-981d-d1a33f505ec9',
         phone: '+221700000001',
-        name: 'Alice Diallo',
+        name: 'Alice Ndiaye',
         role: 'PASSENGER',
         isVerified: false,
         createdAt: '2026-04-09T06:09:54.607Z',
         updatedAt: '2026-04-09T06:09:54.607Z',
-        deletedAt: null,
       },
     },
   })
@@ -48,12 +44,8 @@ export class IdentityController {
   @Roles('DRIVER')
   @ApiBearerAuth('JWT')
   @ApiOperation({
-    summary: 'Mettre à jour la disponibilité (DRIVER)',
-    description: `Met à jour le statut en ligne/hors ligne du chauffeur.\n\n` +
-      `**Rôle requis : DRIVER**\n\n` +
-      `- \`isOnline: true\` → le chauffeur apparaît comme disponible pour les passagers\n` +
-      `- \`isOnline: false\` → le chauffeur est hors ligne\n\n` +
-      `Ce statut est également diffusé en temps réel via WebSocket (namespace \`/availability\`, événement \`availability:updated\`).`,
+    summary: 'Mettre à jour la disponibilité',
+    description: 'Passe le chauffeur en ligne (true) ou hors ligne (false). Rôle DRIVER requis.',
   })
   @ApiParam({ name: 'driverId', description: 'UUID du chauffeur', example: 'ebc00913-5d43-4bbd-8a5a-3288fcfb8def' })
   @ApiBody({ type: UpdateAvailabilityDto })
@@ -69,7 +61,7 @@ export class IdentityController {
     },
   })
   @ApiResponse({ status: 401, description: 'Token manquant ou invalide' })
-  @ApiResponse({ status: 403, description: 'Accès refusé — rôle DRIVER requis' })
+  @ApiResponse({ status: 403, description: 'Rôle DRIVER requis' })
   @ApiResponse({ status: 404, description: 'Chauffeur introuvable' })
   async updateAvailability(
     @Param('driverId', new ParseUUIDPipe()) driverId: string,

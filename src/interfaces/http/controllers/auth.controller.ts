@@ -17,7 +17,7 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Connexion',
-    description: 'Authentifie un utilisateur et retourne un JWT valable 24h. Utilisez ce token dans le header `Authorization: Bearer <token>` pour tous les endpoints protégés.',
+    description: 'Authentifie un utilisateur et retourne un JWT valable 24h ainsi que les infos du compte.',
   })
   @ApiBody({ type: LoginDto })
   @ApiResponse({
@@ -45,28 +45,27 @@ export class AuthController {
 
   @Post('register')
   @ApiOperation({
-    summary: 'Inscription (via /auth)',
-    description: 'Alias de `POST /identity/register`. Crée un compte utilisateur. Préférez `/identity/register` pour la cohérence.',
+    summary: 'Inscription',
+    description: 'Crée un nouveau compte utilisateur. Le mot de passe est hashé et jamais retourné.',
   })
   @ApiBody({ type: RegisterUserDto })
   @ApiResponse({
     status: 201,
-    description: 'Compte créé avec succès (password non retourné)',
+    description: 'Compte créé avec succès',
     schema: {
       example: {
         id: 'a975e635-282a-4d4f-981d-d1a33f505ec9',
         phone: '+221700000001',
-        name: 'Alice Diallo',
+        name: 'Alice Ndiaye',
         role: 'PASSENGER',
         isVerified: false,
         createdAt: '2026-04-09T06:09:54.607Z',
         updatedAt: '2026-04-09T06:09:54.607Z',
-        deletedAt: null,
       },
     },
   })
-  @ApiResponse({ status: 400, description: 'Données invalides (format téléphone, champs manquants...)' })
-  @ApiResponse({ status: 409, description: 'Ce numéro de téléphone est déjà utilisé' })
+  @ApiResponse({ status: 400, description: 'Données invalides' })
+  @ApiResponse({ status: 409, description: 'Numéro de téléphone déjà utilisé' })
   async register(@Body() dto: RegisterUserDto) {
     return this.registerUserUseCase.execute(dto);
   }
