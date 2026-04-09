@@ -115,7 +115,7 @@ jobs:
             cd "$DEPLOY_PATH"
 
             # Écrire le .env
-            printf 'GITHUB_REPOSITORY=%s\n' "$GITHUB_REPOSITORY" > .env
+            printf 'GITHUB_REPOSITORY=%s\n' "$(echo $GITHUB_REPOSITORY | tr '[:upper:]' '[:lower:]')" > .env
             printf 'IMAGE_TAG=%s\n' "$IMAGE_TAG" >> .env
             printf 'DATABASE_URL="%s"\n' "$PROD_DATABASE_URL" >> .env
             printf 'JWT_SECRET="%s"\n' "$PROD_JWT_SECRET" >> .env
