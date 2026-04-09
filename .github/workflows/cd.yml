@@ -98,15 +98,15 @@ jobs:
             cd ${{ env.DEPLOY_PATH }}
 
             # ── Écrire le .env de prod ──────────────────────────────────────
-            cat > .env << 'EOF'
-            GITHUB_REPOSITORY=${{ github.repository }}
-            IMAGE_TAG=${{ needs.publish.outputs.image-tag }}
-            DATABASE_URL=${{ secrets.PROD_DATABASE_URL }}
-            JWT_SECRET=${{ secrets.PROD_JWT_SECRET }}
-            POSTGRES_DB=${{ secrets.PROD_POSTGRES_DB }}
-            POSTGRES_USER=${{ secrets.PROD_POSTGRES_USER }}
-            POSTGRES_PASSWORD=${{ secrets.PROD_POSTGRES_PASSWORD }}
-            EOF
+            cat > .env << EOF
+GITHUB_REPOSITORY=${{ github.repository }}
+IMAGE_TAG=${{ needs.publish.outputs.image-tag }}
+DATABASE_URL='${{ secrets.PROD_DATABASE_URL }}'
+JWT_SECRET='${{ secrets.PROD_JWT_SECRET }}'
+POSTGRES_DB=${{ secrets.PROD_POSTGRES_DB }}
+POSTGRES_USER=${{ secrets.PROD_POSTGRES_USER }}
+POSTGRES_PASSWORD='${{ secrets.PROD_POSTGRES_PASSWORD }}'
+EOF
 
             # ── S'assurer que le réseau Traefik existe ──────────────────────
             docker network inspect traefik-public >/dev/null 2>&1 \
