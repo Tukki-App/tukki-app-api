@@ -104,11 +104,14 @@ jobs:
           DEPLOY_PATH: ${{ env.DEPLOY_PATH }}
           APP_PORT: ${{ env.APP_PORT }}
           DOMAIN: ${{ env.DOMAIN }}
+          CLOUDINARY_CLOUD_NAME: ${{ secrets.CLOUDINARY_CLOUD_NAME }}
+          CLOUDINARY_API_KEY: ${{ secrets.CLOUDINARY_API_KEY }}
+          CLOUDINARY_API_SECRET: ${{ secrets.CLOUDINARY_API_SECRET }}
         with:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
-          envs: GITHUB_REPOSITORY,IMAGE_TAG,GITHUB_ACTOR,GITHUB_TOKEN,PROD_DATABASE_URL,PROD_JWT_SECRET,PROD_POSTGRES_DB,PROD_POSTGRES_USER,PROD_POSTGRES_PASSWORD,DEPLOY_PATH,APP_PORT,DOMAIN
+          envs: GITHUB_REPOSITORY,IMAGE_TAG,GITHUB_ACTOR,GITHUB_TOKEN,PROD_DATABASE_URL,PROD_JWT_SECRET,PROD_POSTGRES_DB,PROD_POSTGRES_USER,PROD_POSTGRES_PASSWORD,DEPLOY_PATH,APP_PORT,DOMAIN,CLOUDINARY_CLOUD_NAME,CLOUDINARY_API_KEY,CLOUDINARY_API_SECRET
           script: |
             set -e
             mkdir -p "$DEPLOY_PATH"
@@ -123,6 +126,9 @@ jobs:
             printf 'POSTGRES_USER=%s\n' "$PROD_POSTGRES_USER" >> .env
             printf 'POSTGRES_PASSWORD="%s"\n' "$PROD_POSTGRES_PASSWORD" >> .env
             printf 'APP_PORT=%s\n' "$APP_PORT" >> .env
+            printf 'CLOUDINARY_CLOUD_NAME=%s\n' "$CLOUDINARY_CLOUD_NAME" >> .env
+            printf 'CLOUDINARY_API_KEY=%s\n' "$CLOUDINARY_API_KEY" >> .env
+            printf 'CLOUDINARY_API_SECRET=%s\n' "$CLOUDINARY_API_SECRET" >> .env
 
             # Login GHCR
             echo "$GITHUB_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
