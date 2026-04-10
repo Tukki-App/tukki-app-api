@@ -31,6 +31,8 @@ async function bootstrap() {
     .addTag('Identity', 'Profil utilisateur et disponibilité chauffeur')
     .addTag('Trips', 'Création et recherche de trajets')
     .addTag('Bookings', 'Réservations')
+    .addTag('Upload', 'Upload d\'images via Cloudinary')
+    .addTag('Admin', 'Back office — gestion et statistiques (ADMIN uniquement)')
     .build();
 
   const document = SwaggerModule.createDocument(app, config);

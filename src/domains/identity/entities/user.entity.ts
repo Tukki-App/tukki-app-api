@@ -28,7 +28,7 @@ export class User {
     type: 'varchar',
     length: 20,
   })
-  role!: 'PASSENGER' | 'DRIVER';
+  role!: 'PASSENGER' | 'DRIVER' | 'ADMIN';
 
   @Column({ default: false, name: 'is_verified' })
   isVerified!: boolean;

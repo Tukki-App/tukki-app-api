@@ -6,7 +6,7 @@ import { ROLES_KEY } from '../decorators/roles.decorator';
 interface RequestWithUser extends Request {
   user?: {
     userId: string;
-    role: 'PASSENGER' | 'DRIVER';
+    role: 'PASSENGER' | 'DRIVER' | 'ADMIN';
     phone: string;
   };
 }

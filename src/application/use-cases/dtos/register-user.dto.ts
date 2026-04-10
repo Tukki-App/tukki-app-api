@@ -19,12 +19,12 @@ export class RegisterUserDto {
   name!: string;
 
   @ApiProperty({
-    enum: ['PASSENGER', 'DRIVER'],
+    enum: ['PASSENGER', 'DRIVER', 'ADMIN'],
     example: 'PASSENGER',
-    description: '`PASSENGER` pour un passager, `DRIVER` pour un chauffeur',
+    description: 'PASSENGER pour un passager, DRIVER pour un chauffeur, ADMIN pour un administrateur',
   })
-  @IsEnum(['PASSENGER', 'DRIVER'])
-  role!: 'PASSENGER' | 'DRIVER';
+  @IsEnum(['PASSENGER', 'DRIVER', 'ADMIN'])
+  role!: 'PASSENGER' | 'DRIVER' | 'ADMIN';
 
   @ApiProperty({ example: 'pass1234', description: 'Mot de passe (min. 6 caractères)', minLength: 6 })
   @IsString()
